@@ -1,40 +1,63 @@
-name: Android CI/CD Pipeline
+name: Build SunnyMenu V2
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
-    # Bước 1: Lấy mã nguồn từ kho lưu trữ GitHub
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-    # Bước 2: Thiết lập môi trường Java JDK 17 (Phù hợp với các phiên bản Gradle mới)
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-    # Bước 3: Cấp quyền thực thi cho file chạy Gradle (gradlew)
-    - name: Grant Execute Permission for Gradlew
-      run: chmod +x gradlew
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-    # Bước 4: Chạy lệnh xây dựng ứng dụng (Build sinh ra file APK Debug)
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
-    # Bước 5: Lưu trữ và tải file APK lên GitHub Artifacts để bạn có thể tải về máy
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
-        
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Check project
+        run: |
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          echo "Project structure OK"
+
+      - name: Build debug APK
+        run: |
+          gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SunnyMenuV2-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
